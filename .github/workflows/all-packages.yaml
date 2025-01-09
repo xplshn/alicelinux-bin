@@ -20,7 +20,7 @@ jobs:
     runs-on: ubuntu-latest
     permissions: write-all
     container:
-      image: "docker.io/11notes/alpine:latest"
+      image: "docker.io/11notes/alpine"
       options: --privileged
 
     steps:
