@@ -33,59 +33,56 @@ jobs:
           TAG_NAME="v${GITHUB_RUN_NUMBER}-$(date +'%Y%m%d%H%M%S')"
           echo "$TAG_NAME" > tag_name.txt
           echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
-          
-        # Upload TAG_NAME as an artifact
+
       - name: Upload TAG_NAME artifact
         uses: actions/upload-artifact@v4
         with:
           name: tag-name
           path: tag_name.txt
 
-      - name: Download AliceLinux
+      - name: Download latest AliceLinux
         run: |
-          TAG="20241006"
+          # Get the latest release tag from Codeberg
+          LATEST_TAG="$(curl -s https://codeberg.org/api/v1/repos/emmett1/alicelinux/releases/latest | grep -o '"tag_name":"[^"]*' | cut -d'"' -f4)"
+          
           mkdir ./alice
-          wget -qO- "https://codeberg.org/emmett1/alicelinux/releases/download/${TAG}/alicelinux-rootfs-${TAG}.tar.xz" | tar xvf - -C ./alice
-          ./alice/usr/bin/apkg-chroot /alice sh -s <<'EOF'
+          wget -qO- "https://codeberg.org/emmett1/alicelinux/releases/download/${LATEST_TAG}/alicelinux-rootfs-${LATEST_TAG}.tar.xz" | tar xvf - -C ./alice
+          
+          # Enter chroot and perform required operations
+          ./alice/usr/bin/apkg-chroot /alice sh -c <<'EOF'
           echo "Welcome to AliceLinux"
+          
           # Set up repositories
           git clone --depth=1 https://codeberg.org/emmett1/alicelinux /var/lib/alicelinux
           mkdir -p /var/cache/pkg
           mkdir -p /var/cache/src
           mkdir -p /var/cache/work
-          # Set up apkg
-          echo 'export CFLAGS="-O2 -march=x86-64 -pipe"' >> /etc/apkg.conf
-          echo 'export CXXFLAGS="$CFLAGS"' >> /etc/apkg.conf
-          echo 'export MAKEFLAGS="-j$(nproc)"' >> /etc/apkg.conf
-          echo 'export NINJAJOBS="$(nproc)"' >> /etc/apkg.conf
-          echo 'APKG_REPO="/var/lib/alicelinux/repos/core /var/lib/alicelinux/repos/extra /var/lib/alicelinux/repos/wayland /var/lib/alicelinux/repos/xorg"' >> /etc/apkg.conf
-          # Perform system update -> Install all packages in the repos
+          
+          # Enter non-interactive mode
           export APKG_NOPROMPT=1
+          
+          # Run required commands
+          apkg-reposync
           apkg -U
-          apkg -I $(apkg -s) #mimalloc
-          #echo 'export CFLAGS="-O2 -march=x86-64 -pipe -lmimalloc"' >> /etc/apkg.conf
-          #apkg -u $(apkg -s)
+          apkg -I mimalloc
+          echo 'export CFLAGS="-O2 -march=x86_64 -lmimalloc"' >> /etc/apkg.conf
+          apkg -I $(apkg -a)
+          apkg-clean
           EOF
 
-      - name: Upload app bundle artifacts
+      - name: Copy package files
+        run: |
+          mkdir -p ${{ github.workspace }}/packages
+          cp /alice/var/cache/pkg/*.spm ${{ github.workspace }}/packages/
+
+      - name: Upload package artifacts
         uses: actions/upload-artifact@v4
         with:
           name: packages
-          path: ${{ env.OUT_DIR }}/*.spm
-          name: alice_rootfs
-          path: ${{ env.OUT_DIR }}/alice
-
-      - name: List generated metadata files
-        run: |
-          ls ${{ env.META_OUT_DIR }}/*
-      - name: Upload metadata artifacts
-        uses: actions/upload-artifact@v4
-        with:
-          name: metadata
-          path: ${{ env.META_OUT_DIR }}/*
+          path: ${{ github.workspace }}/packages/*.spm
 
   release:
-    name: Release AppBundles
+    name: Release Packages
     runs-on: ubuntu-latest
     needs: build
     permissions: write-all
@@ -95,117 +92,44 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Download app bundle artifacts
+      - name: Download package artifacts
         uses: actions/download-artifact@v4
         with:
-          name: app-bundles
-          path: ${{ github.workspace }}
+          name: packages
+          path: ${{ github.workspace }}/packages
 
-      - name: Download metadata artifact
+      - name: Download TAG_NAME artifact
         uses: actions/download-artifact@v4
         with:
-          name: metadata
-          path: ${{ github.workspace }}
+          name: tag-name
+
+      - name: Read TAG_NAME
+        id: get_tag_name
+        run: |
+          TAG_NAME=$(cat tag_name.txt)
+          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
 
       - name: Manage Tags
         run: |
           git fetch --tags
-          TAGS=$(git tag | grep -v "^latest_metadata$" | sort -V)
+          TAGS=$(git tag | grep -v "^latest$" | sort -V)
           TAG_COUNT=$(echo "$TAGS" | wc -l)
           if [ "$TAG_COUNT" -gt 5 ]; then
-            TAGS_TO_DELETE=$(echo "$TAGS" | head -n -1)
+            TAGS_TO_DELETE=$(echo "$TAGS" | head -n -5)
             for TAG in $TAGS_TO_DELETE; do
               git tag -d "$TAG"
               git push origin --delete "$TAG"
             done
           fi
 
-      - name: Download TAG_NAME artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tag-name
-
-      - name: Read TAG_NAME
-        id: get_tag_name
-        run: |
-          TAG_NAME=$(cat tag_name.txt)
-          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
-
-      - name: Create Git Tag
-        run: |
-          git tag "${{ env.TAG_NAME }}"
-          git push origin "${{ env.TAG_NAME }}"
-      - name: Determine if pre-release
-        id: determine_prerelease
-        run: |
-          if [ "${{ github.event_name }}" == "workflow_dispatch" ]; then
-            echo "prerelease=true" >> $GITHUB_ENV
-          else
-            echo "prerelease=false" >> $GITHUB_ENV
-          fi
       - name: Create Release
         uses: softprops/action-gh-release@v2.0.8
         with:
-          name: "Weekly Release - ${{ env.TAG_NAME }}"
+          name: "Package Release - ${{ env.TAG_NAME }}"
           tag_name: "${{ env.TAG_NAME }}"
-          prerelease: ${{ env.prerelease }}
+          prerelease: ${{ github.event_name == 'workflow_dispatch' }}
           draft: false
           generate_release_notes: false
           make_latest: true
           files: |
-            ${{ github.workspace }}/*.AppBundle
-            ${{ github.workspace }}/metadata.json
-        continue-on-error: true
-
-  publish_metadata:
-    name: Publish Metadata
-    runs-on: ubuntu-latest
-    needs: build
-    if: ${{ github.event.inputs.release == 'true' }}
-    permissions: write-all
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Download metadata artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: metadata
-          path: ${{ github.workspace }}
-
-      - name: Update latest_metadata tag and create release
-        run: |
-          git fetch --tags
-          if git tag -l | grep -q "^latest_metadata$"; then
-            git tag -d latest_metadata
-            git push origin --delete latest_metadata || true
-          fi
-          git tag latest_metadata
-          git push origin latest_metadata
-
-      - name: Download TAG_NAME artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tag-name
-
-      - name: Read TAG_NAME
-        id: get_tag_name
-        run: |
-          TAG_NAME=$(cat tag_name.txt)
-          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
-          
-      - name: Create Release for Metadata
-        uses: softprops/action-gh-release@v2.0.8
-        with:
-          name: "Latest Metadata"
-          tag_name: "latest_metadata"
-          files: |
-            ${{ github.workspace }}/*.json
-            ${{ github.workspace }}/*.png
-            ${{ github.workspace }}/*.svg
-            ${{ github.workspace }}/*.desktop
-            ${{ github.workspace }}/*.xml
-          body: "Metadata files for ${{ env.TAG_NAME }}"
-          draft: false
-          prerelease: true
-          make_latest: false
+            ${{ github.workspace }}/packages/*.spm
