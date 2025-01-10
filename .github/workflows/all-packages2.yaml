@@ -75,9 +75,9 @@ jobs:
           mkdir -p ${{ github.workspace }}/packages
           cp ./alice/var/cache/pkg/*.spm ${{ github.workspace }}/packages/
 
-      - name: Create tar.xz of aliceLinux rootfs
+      - name: Create tar.gz of aliceLinux rootfs
         run: |
-          tar -czf alice-rootfs.tar.xz -C ./alice .
+          tar -czf alice-rootfs.tar.gz -C ./alice .
 
       - name: Upload package artifacts
         if: ${{ github.event.inputs.release == 'false' }}
@@ -91,7 +91,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: alice-rootfs
-          path: alice-rootfs.tar.xz
+          path: alice-rootfs.tar.gz
 
       - name: Create Release
         if: ${{ github.event.inputs.release == 'true' }}
