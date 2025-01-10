@@ -77,7 +77,7 @@ jobs:
 
       - name: Create tar.xz of aliceLinux rootfs
         run: |
-          tar -cJf alice-rootfs.tar.xz -C ./alice .
+          tar -czf alice-rootfs.tar.xz -C ./alice .
 
       - name: Upload package artifacts
         if: ${{ github.event.inputs.release == 'false' }}
