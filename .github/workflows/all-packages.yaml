@@ -42,6 +42,10 @@ jobs:
 
       - name: Download latest AliceLinux
         run: |
+          apk update
+          apk upgrade
+          apk add curl
+          
           # Get the latest release tag from Codeberg
           LATEST_TAG="$(curl -s https://codeberg.org/api/v1/repos/emmett1/alicelinux/releases/latest | grep -o '"tag_name":"[^"]*' | cut -d'"' -f4)"
           
