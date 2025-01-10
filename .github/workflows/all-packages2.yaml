@@ -60,13 +60,12 @@ jobs:
           # Enter non-interactive mode
           export APKG_NOPROMPT=1
 
-          # Run required commands
+          # Sync repos, update installed packages, install build packages, install all available packages, check orphaned packages, clean up old cached files that mustn't be uploaded
           time apkg-reposync
           time apkg -U || true
           time apkg -I meson cmake pkgconf libtool automake perl ccache || true
-          #echo 'export CFLAGS="-O2 -march=x86_64 -lmimalloc"' >> /etc/apkg.conf
           time apkg -I $(apkg -s) || true
-          time revdep || true
+          time revdep -v || true
           time apkg-clean || true
           EOF
 
@@ -75,23 +74,12 @@ jobs:
           mkdir -p ${{ github.workspace }}/packages
           cp ./alice/var/cache/pkg/*.spm ${{ github.workspace }}/packages/
 
-      - name: Create tar.gz of aliceLinux rootfs
-        run: |
-          cd ./alice; tar -cJpf alice-rootfs.tar.gz *
-
       - name: Upload package artifacts
         if: ${{ github.event.inputs.release == 'false' }}
         uses: actions/upload-artifact@v4
         with:
           name: packages
           path: ${{ github.workspace }}/packages/*.spm
-
-      - name: Upload chroot artifact
-        if: ${{ github.event.inputs.release == 'false' }}
-        uses: actions/upload-artifact@v4
-        with:
-          name: alice-rootfs
-          path: alice-rootfs.tar.gz
 
       - name: Create Release
         if: ${{ github.event.inputs.release == 'true' }}
@@ -105,4 +93,3 @@ jobs:
           make_latest: true
           files: |
             ${{ github.workspace }}/packages/*.spm
-            alice-rootfs.tar.xz
