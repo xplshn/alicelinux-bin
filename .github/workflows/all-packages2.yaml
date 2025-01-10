@@ -28,10 +28,10 @@ jobs:
 
           apk update
           apk upgrade
-          apk add curl
+          apk add xz
 
           # Get the latest release tag from Codeberg
-          LATEST_TAG="$(curl -s https://codeberg.org/api/v1/repos/emmett1/alicelinux/releases/latest | grep -o '"tag_name":"[^"]*' | cut -d'"' -f4)"
+          LATEST_TAG="$(wget -qO- https://codeberg.org/api/v1/repos/emmett1/alicelinux/releases/latest | grep -o '"tag_name":"[^"]*' | cut -d'"' -f4)"
 
           mkdir ./alice
           wget -qO- "https://codeberg.org/emmett1/alicelinux/releases/download/${LATEST_TAG}/alicelinux-rootfs-${LATEST_TAG}.tar.xz" | tar xJvf - -C ./alice
@@ -55,7 +55,7 @@ jobs:
           echo 'APKG_SOURCE_DIR=/var/cache/src' >> /etc/apkg.conf
           echo 'APKG_WORK_DIR=/var/cache/work' >> /etc/apkg.conf
 
-          echo "xplshn/alicelinux-bin" > /etc/hostname
+          echo "xplshn/alicelinux" > /etc/hostname
 
           # Enter non-interactive mode
           export APKG_NOPROMPT=1
@@ -77,7 +77,7 @@ jobs:
 
       - name: Create tar.gz of aliceLinux rootfs
         run: |
-          tar -czf alice-rootfs.tar.gz -C ./alice .
+          cd ./alice; tar -cJpf alice-rootfs.tar.gz *
 
       - name: Upload package artifacts
         if: ${{ github.event.inputs.release == 'false' }}
