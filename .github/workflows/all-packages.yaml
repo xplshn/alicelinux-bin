@@ -52,7 +52,7 @@ jobs:
           LATEST_TAG="$(curl -s https://codeberg.org/api/v1/repos/emmett1/alicelinux/releases/latest | grep -o '"tag_name":"[^"]*' | cut -d'"' -f4)"
           
           mkdir ./alice
-          wget -qO- "https://codeberg.org/emmett1/alicelinux/releases/download/${LATEST_TAG}/alicelinux-rootfs-${LATEST_TAG}.tar.xz" | tar xvf - -C ./alice
+          wget -qO- "https://codeberg.org/emmett1/alicelinux/releases/download/${LATEST_TAG}/alicelinux-rootfs-${LATEST_TAG}.tar.xz" | tar xzvf - -C ./alice
           
           # Enter chroot and perform required operations
           ./alice/usr/bin/apkg-chroot /alice sh -c <<'EOF'
