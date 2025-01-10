@@ -83,7 +83,7 @@ jobs:
           apkg -U || true
           apkg -I meson cmake pkgconf libtool automake perl ccache || true
           #echo 'export CFLAGS="-O2 -march=x86_64 -lmimalloc"' >> /etc/apkg.conf
-          apkg -I $(apkg -a) || true
+          apkg -I $(apkg -s) || true
           apkg-clean || true
           EOF
 
