@@ -6,13 +6,12 @@ on:
   workflow_dispatch:
     inputs:
       release:
-        description: "Create a release (true/false)" # IF DISABLED, PUBLISH ./alice as artifact, do not make a release nor publish the *.spm files.
-        required: false
+        description: "Create a release (true/false)"
         default: "true"
 
 jobs:
-  build:
-    name: Set up rootfs
+  build-and-release:
+    name: Build and Release
     runs-on: ubuntu-latest
     permissions: write-all
     container:
@@ -22,19 +21,6 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
-
-      - name: Generate TAG_NAME
-        id: set_tag_name
-        run: |
-          TAG_NAME="v${GITHUB_RUN_NUMBER}-$(date +'%Y%m%d%H%M%S')"
-          echo "$TAG_NAME" > tag_name.txt
-          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
-
-      - name: Upload TAG_NAME artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: tag-name
-          path: tag_name.txt
 
       - name: Download latest AliceLinux
         run: |
@@ -75,12 +61,13 @@ jobs:
           export APKG_NOPROMPT=1
 
           # Run required commands
-          apkg-reposync
-          apkg -U || true
-          apkg -I meson cmake pkgconf libtool automake perl ccache || true
+          time apkg-reposync
+          time apkg -U || true
+          time apkg -I meson cmake pkgconf libtool automake perl ccache || true
           #echo 'export CFLAGS="-O2 -march=x86_64 -lmimalloc"' >> /etc/apkg.conf
-          apkg -I $(apkg -s) || true
-          apkg-clean || true
+          time apkg -I $(apkg -s) || true
+          time revdep || true
+          time apkg-clean || true
           EOF
 
       - name: Copy package files
@@ -88,56 +75,34 @@ jobs:
           mkdir -p ${{ github.workspace }}/packages
           cp ./alice/var/cache/pkg/*.spm ${{ github.workspace }}/packages/
 
-      - name: Create .tar.xz of chroot
+      - name: Create tar.xz of aliceLinux rootfs
         run: |
-          tar -cJf ${{ github.workspace }}/alice-rootfs-${{ env.TAG_NAME }}.tar.xz -C ./alice .
+          tar -cJf alice-rootfs.tar.xz -C ./alice .
 
       - name: Upload package artifacts
+        if: ${{ github.event.inputs.release == 'false' }}
         uses: actions/upload-artifact@v4
         with:
           name: packages
           path: ${{ github.workspace }}/packages/*.spm
 
-      - name: Upload .tar.xz artifact
+      - name: Upload chroot artifact
+        if: ${{ github.event.inputs.release == 'false' }}
         uses: actions/upload-artifact@v4
         with:
           name: alice-rootfs
-          path: ${{ github.workspace }}/alice-rootfs-${{ env.TAG_NAME }}.tar.xz
-
-      - name: Download TAG_NAME artifact
-        uses: actions/download-artifact@v4
-        with:
-          name: tag-name
-
-      - name: Read TAG_NAME
-        id: get_tag_name
-        run: |
-          TAG_NAME=$(cat tag_name.txt)
-          echo "TAG_NAME=${TAG_NAME}" >> $GITHUB_ENV
-
-      - name: Manage Tags
-        run: |
-          git fetch --tags
-          TAGS=$(git tag | grep -v "^latest$" | sort -V)
-          TAG_COUNT=$(echo "$TAGS" | wc -l)
-          if [ "$TAG_COUNT" -gt 5 ]; then
-            TAGS_TO_DELETE=$(echo "$TAGS" | head -n -5)
-            for TAG in $TAGS_TO_DELETE; do
-              git tag -d "$TAG"
-              git push origin --delete "$TAG"
-            done
-          fi
+          path: alice-rootfs.tar.xz
 
       - name: Create Release
         if: ${{ github.event.inputs.release == 'true' }}
         uses: softprops/action-gh-release@v2.0.8
         with:
-          name: "Package Release - ${{ env.TAG_NAME }}"
-          tag_name: "${{ env.TAG_NAME }}"
+          name: "Package Release"
+          tag_name: "v${{ github.run_number }}"
           prerelease: ${{ github.event_name == 'workflow_dispatch' }}
           draft: false
           generate_release_notes: false
           make_latest: true
           files: |
             ${{ github.workspace }}/packages/*.spm
-            ${{ github.workspace }}/alice-rootfs-${{ env.TAG_NAME }}.tar.xz
+            alice-rootfs.tar.xz
