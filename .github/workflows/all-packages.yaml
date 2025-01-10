@@ -55,7 +55,7 @@ jobs:
           wget -qO- "https://codeberg.org/emmett1/alicelinux/releases/download/${LATEST_TAG}/alicelinux-rootfs-${LATEST_TAG}.tar.xz" | tar xJvf - -C ./alice
           
           # Enter chroot and perform required operations
-          ./alice/usr/bin/apkg-chroot /alice sh -c <<'EOF'
+          ./alice/usr/bin/apkg-chroot ./alice sh -c <<'EOF'
           echo "Welcome to AliceLinux"
           
           # Set up repositories
