@@ -57,6 +57,17 @@ jobs:
           mkdir -p /var/cache/pkg
           mkdir -p /var/cache/src
           mkdir -p /var/cache/work
+
+          echo 'export CFLAGS="-O2 -march=x86-64-v3 -pipe"' >> /etc/apkg.conf
+          echo 'export CXXFLAGS="$CFLAGS"' >> /etc/apkg.conf
+          echo 'export MAKEFLAGS="-j$(nproc)"' >> /etc/apkg.conf
+          echo 'export NINJAJOBS="$(nproc)"' >> /etc/apkg.conf
+          echo 'APKG_REPO="/var/lib/alicelinux/repos/core /var/lib/alicelinux/repos/extra /var/lib/alicelinux/repos/wayland /var/lib/alicelinux/repos/xorg"' >> /etc/apkg.conf
+          echo 'APKG_PACKAGE_DIR=/var/cache/pkg' >> /etc/apkg.conf
+          echo 'APKG_SOURCE_DIR=/var/cache/src' >> /etc/apkg.conf
+          echo 'APKG_WORK_DIR=/var/cache/work' >> /etc/apkg.conf
+          
+          echo "xplshn/alicelinux-bin" > /etc/hostname
           
           # Enter non-interactive mode
           export APKG_NOPROMPT=1
@@ -64,8 +75,8 @@ jobs:
           # Run required commands
           apkg-reposync
           apkg -U
-          apkg -I mimalloc
-          echo 'export CFLAGS="-O2 -march=x86_64 -lmimalloc"' >> /etc/apkg.conf
+          apkg -I meson cmake pkgconf libtool automake perl ccache #mimalloc
+          #echo 'export CFLAGS="-O2 -march=x86_64 -lmimalloc"' >> /etc/apkg.conf
           apkg -I $(apkg -a)
           apkg-clean
           EOF
