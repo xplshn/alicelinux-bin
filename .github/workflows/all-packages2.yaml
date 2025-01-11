@@ -68,11 +68,10 @@ jobs:
           time revdep -v || true
           time apkg-clean || true
           EOF
-
-      - name: Copy package files
-        run: |
+          
+          # Move packages to workspace
           mkdir -p ${{ github.workspace }}/packages
-          cp ./alice/var/cache/pkg/*.spm ${{ github.workspace }}/packages/
+          mv ./alice/var/cache/pkg/*.spm ${{ github.workspace }}/packages/
 
       - name: Upload package artifacts
         if: ${{ github.event.inputs.release == 'false' }}
