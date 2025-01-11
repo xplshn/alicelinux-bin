@@ -71,7 +71,14 @@ jobs:
           
           # Move packages to workspace
           mkdir -p ${{ github.workspace }}/packages
-          mv ./alice/var/cache/pkg/*.spm ${{ github.workspace }}/packages/
+          cp ./alice/var/cache/pkg/*.spm ${{ github.workspace }}/packages
+
+      - name: Verify Package Files
+        run: |
+          if ! ls ${{ github.workspace }}/packages/*.spm >/dev/null 2>&1; then
+            echo "No packages found in \"${{ github.workspace }}/packages/*.spm\". Exiting."
+            exit 1
+          fi
 
       - name: Upload package artifacts
         if: ${{ github.event.inputs.release == 'false' }}
