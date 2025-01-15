@@ -41,7 +41,7 @@ jobs:
           echo "Welcome to AliceLinux"
 
           # Set up repositories
-          git clone --depth=1 https://codeberg.org/xplshn/alicelinux /var/lib/alicelinux
+          git clone --depth=1 https://codeberg.org/emmett1/alicelinux /var/lib/alicelinux
           mkdir -p /var/cache/pkg
           mkdir -p /var/cache/src
           mkdir -p /var/cache/work
